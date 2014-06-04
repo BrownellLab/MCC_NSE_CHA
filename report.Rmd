@@ -1,0 +1,102 @@
+---
+title: "MCC NSE CHA"
+author: "Kenneth Daily"
+date: "06/04/2014"
+output: html_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see http://rmarkdown.rstudio.com.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r libs, message=FALSE, warning=FALSE, echo=FALSE}
+library(ggplot2)
+library(reshape)
+library(plyr)
+library(RColorBrewer)
+library(knitr)
+
+options(xtable.type="html", xtable.caption.placement="top", xtable.include.row.names=FALSE)
+opts_chunk$set(comment=NA, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, fig.width=10, fig.height=8)
+
+```
+
+```{r loaddata}
+
+data <- read.csv("data/2014-06-03_NSE_ChrA_all.csv",
+                 colClasses=c("factor", "character", "numeric", "numeric", "numeric"))
+
+metadata <- read.csv("data/2014-06-03_MCC_Dx_Px_dates.csv")
+
+metadata.cols <- c("id", "mccdxdat", "progfree", "firstprg")
+metadata.use <- metadata[, metadata.cols]
+metadata.use[metadata.use == ""] <- NA
+
+data.merge <- merge(data, metadata.use, by.x="PtNum", by.y="id")
+
+data.merge <- transform(data.merge,
+                        Date=as.Date(Date, format="%m/%d/%Y"),
+                        mccdxdat=as.Date(mccdxdat, format="%m/%d/%Y"),
+                        progfree=as.Date(progfree, format="%m/%d/%Y"),
+                        firstprg=as.Date(firstprg, format="%m/%d/%Y"))
+
+data.merge <- transform(data.merge,
+                        mccdxday=0,
+                        DateDays=difftime(Date, mccdxdat, units="days"),
+                        progfreedays=difftime(progfree, mccdxdat, units="days"),
+                        DateWeeks=difftime(Date, mccdxdat, units="weeks"),
+                        progfreeweeks=difftime(progfree, mccdxdat, units="weeks"),
+                        progressed=factor(is.na(firstprg),
+                                           levels=c(TRUE, FALSE),
+                                           labels=c("No Progression", "Progression"),
+                                           ordered=TRUE)
+                        )
+
+```
+
+```{r nseplot1}
+pointspersample <- ddply(data.merge, .(PtNum), nrow)
+samples.keep <- subset(pointspersample, V1 > 3)$PtNum
+# samples.keep <- c(18, 31, 38, 53, 64, 8)
+
+plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
+
+p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum))
+p <- p + geom_line(aes(color=PtNum), size=1)
+p <- p + geom_point(aes(color=PtNum), size=3)
+# p <- p + facet_wrap(~ PtNum)
+
+# Get the first point to highlight
+min.plot.data <- ddply(plot.data, .(PtNum), function(x) x[which(min(x$Date) == x$Date), ])
+p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8)
+
+p <- p + labs(x="Days from Dx", y="NSE (ug)")
+p <- p + theme_bw()
+p <- p + theme(legend.position="none")
+print(p)
+```
+
+
+```{r nseplot2}
+pointspersample <- ddply(data.merge, .(PtNum), nrow)
+samples.keep <- subset(pointspersample, V1 > 3)$PtNum
+# samples.keep <- c(18, 31, 38, 53, 64, 8)
+
+plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
+
+p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum))
+p <- p + geom_line(size=1)
+p <- p + geom_point( size=3)
+
+# mark the date of progression, if it exists
+prog.data <- unique(subset(plot.data, !is.na(progfreedays))[, c("PtNum", "progfreedays")])
+p <- p + geom_vline(data=prog.data, aes(xintercept=as.numeric(progfreedays)), color="red")
+# p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8, color="red")
+
+p <- p + facet_wrap(~ PtNum, scale="free_x")
+p <- p + labs(x="Days from Dx", y="NSE (ug)")
+
+p <- p + theme_bw()
+p <- p + theme(legend.position="none")
+print(p)
+```
