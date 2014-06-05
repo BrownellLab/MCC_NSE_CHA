@@ -18,6 +18,36 @@ library(gridExtra)
 options(xtable.type="html", xtable.caption.placement="top", xtable.include.row.names=FALSE)
 opts_chunk$set(comment=NA, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, fig.width=10, fig.height=5)
 
+
+findclosestdatebefore <- function(dates, refdate, checkorder=FALSE) {
+  
+  if (all(is.na(dates))) {
+    return(NA)
+  }
+  
+  if (is.na(refdate)) {
+    return(NA)
+  }
+  
+  # find the closest date occuring before a reference date
+  result <- dates[with(data.pt, which.min(dates - refdate))]
+  if (checkorder & result > refdate) {
+    result <- NA
+    }
+  
+  result
+}
+
+data.pt <- subset(data.merge, PtNum == 10)
+with(data.pt, findclosestdatebefore(Date, firstprg))
+
+ddpfcl <- function(a) {
+  refdate <- a$firstprg[1]
+  findclosestdatebefore(a$Date, refdate)
+}
+
+foo <- ddply(data.merge, .(PtNum), ddpfcl)
+bar <- merge(data.merge, foo, by="PtNum")
 ```
 
 ```{r loaddata}
@@ -27,7 +57,7 @@ data <- read.csv("data/2014-06-03_NSE_ChrA_all.csv",
 
 metadata <- read.csv("data/2014-06-03_MCC_Dx_Px_dates.csv")
 
-metadata.cols <- c("id", "mccdxdat", "progfree", "firstprg", "nse1date", "chrne1da")
+metadata.cols <- c("id", "mccdxdat", "progfree", "firstprg", "nseprgda", "nse1date", "chrne1da", "chraprgdanew")
 metadata.use <- metadata[, metadata.cols]
 metadata.use[metadata.use == ""] <- NA
 
@@ -39,6 +69,7 @@ data.merge <- transform(data.merge,
                         progfree=as.Date(progfree, format="%m/%d/%Y"),
                         firstprg=as.Date(firstprg, format="%m/%d/%Y"),
                         nse1date=as.Date(nse1date, format="%m/%d/%Y"),
+                        nseprgda=as.Date(nseprgda, format="%m/%d/%Y"),
                         chrne1da=as.Date(chrne1da, format="%m/%d/%Y"))
 
 data.merge <- transform(data.merge,
@@ -61,7 +92,7 @@ data.merge <- transform(data.merge,
                                            labels=c("No Progression", "Progression"),
                                            ordered=TRUE),
                         
-                        closestnsedate=Date == nse1date,
+                        closestnsedate=Date == nseprgda,
                         closestchradate=Date == chrne1da
                         )
 
@@ -94,6 +125,15 @@ colnames(tbl)[1] <- "Progression status"
 # tbl <- tbl[1:3, ]
 xtbl <- xtable(tbl)
 print(xtbl)
+```
+
+### Table of progression status and NSE data availability
+```{r, results='asis'}
+foo <- ddply(data.merge, .(PtNum), function(x) data.frame(progressed=any(x$progressed == "Progression"), NSE=any(!is.na(x$NSE))))
+tbl <- with(foo, table(progressed, NSE))
+rownames(tbl) <- c("No Progression", "Progression")
+colnames(tbl) <- c("NSE not available", "NSE available")
+xtable(tbl)
 ```
 
 ### NSE summary distribution, testing date progression status
