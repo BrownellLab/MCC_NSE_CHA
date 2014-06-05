@@ -5,9 +5,6 @@ date: "06/04/2014"
 output: html_document
 ---
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see http://rmarkdown.rstudio.com.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r libs, message=FALSE, warning=FALSE, echo=FALSE}
 library(ggplot2)
@@ -15,9 +12,11 @@ library(reshape)
 library(plyr)
 library(RColorBrewer)
 library(knitr)
+library(xtable)
+library(gridExtra)
 
 options(xtable.type="html", xtable.caption.placement="top", xtable.include.row.names=FALSE)
-opts_chunk$set(comment=NA, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, fig.width=10, fig.height=8)
+opts_chunk$set(comment=NA, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, fig.width=10, fig.height=5)
 
 ```
 
@@ -49,12 +48,84 @@ data.merge <- transform(data.merge,
                         progressed=factor(is.na(firstprg),
                                            levels=c(TRUE, FALSE),
                                            labels=c("No Progression", "Progression"),
-                                           ordered=TRUE)
-                        )
+                                           ordered=TRUE),
+                        beforeprogression=factor(Date <= firstprg, 
+                                                 levels=c(TRUE, FALSE),
+                                                 labels=c("Before Progression", "After Progression"),
+                                                 ordered=TRUE))
+
+# head(data.merge[, c("beforeprogression", "progressed", "progfree", "firstprg")])
 
 ```
 
+## NSE
+- WNL: < 17 ug
+- above normal: >= 17 until 24.3
+- high: > 24.3
+
+### NSE summary distribution, progressed vs. no progression
+
+```{r nsesummary}
+nse.cutpoints <- data.frame(y=c(17, 24.3))
+
+pointspersample <- ddply(data.merge, .(PtNum), nrow)
+samples.keep <- subset(pointspersample, V1 > 3)$PtNum
+# samples.keep <- c(18, 31, 38, 53, 64, 8)
+
+plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
+
+p1 <- ggplot(plot.data, aes(x=NSE, group=progressed, color=progressed))
+p1 <-p1 + geom_density()
+p1 <- p1 + scale_color_manual(values=c("red", "blue"))
+p1 <- p1 + theme_bw()
+p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
+                 axis.title.x=element_blank(), legend.position="none")
+
+p2 <- ggplot(plot.data, aes(y=NSE, x=progressed, color=progressed))
+p2 <-p2 + geom_boxplot()
+p2 <- p2 + scale_color_manual(values=c("red", "blue"))
+p2 <- p2 + coord_flip()
+
+p2 <- p2 + theme_bw()
+p2 <- p2 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(), legend.position="bottom")
+
+grid.arrange(p1, p2, nrow=2, heights = unit(c(2,1), "null"))
+```
+
+### NSE summary distribution, before vs after progression
+
+```{r nsebeforevsafter}
+nse.cutpoints <- data.frame(y=c(17, 24.3))
+
+pointspersample <- ddply(data.merge, .(PtNum), nrow)
+samples.keep <- subset(pointspersample, V1 > 3)$PtNum
+# samples.keep <- c(18, 31, 38, 53, 64, 8)
+
+plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
+
+p1 <- ggplot(plot.data, aes(x=NSE, group=beforeprogression, color=beforeprogression))
+p1 <-p1 + geom_density()
+p1 <- p1 + scale_color_manual(values=c("red", "blue"))
+p1 <- p1 + theme_bw()
+p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
+                 axis.title.x=element_blank(), legend.position="none")
+
+p2 <- ggplot(plot.data, aes(y=NSE, x=beforeprogression, color=beforeprogression))
+p2 <-p2 + geom_boxplot()
+p2 <- p2 + scale_color_manual(values=c("red", "blue"))
+p2 <- p2 + coord_flip()
+
+p2 <- p2 + theme_bw()
+p2 <- p2 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(), legend.position="bottom")
+
+grid.arrange(p1, p2, nrow=2, heights = unit(c(2,1), "null"))
+```
+
+
 ```{r nseplot1}
+
+nse.cutpoints <- data.frame(y=c(17, 24.3))
+
 pointspersample <- ddply(data.merge, .(PtNum), nrow)
 samples.keep <- subset(pointspersample, V1 > 3)$PtNum
 # samples.keep <- c(18, 31, 38, 53, 64, 8)
@@ -70,20 +141,20 @@ p <- p + geom_point(aes(color=PtNum), size=3)
 min.plot.data <- ddply(plot.data, .(PtNum), function(x) x[which(min(x$Date) == x$Date), ])
 p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8)
 
+# Draw cutpoints
+p <- p + geom_hline(data=nse.cutpoints, aes(yintercept=y))
+
+p <- p + facet_grid(~ progressed)
+
 p <- p + labs(x="Days from Dx", y="NSE (ug)")
 p <- p + theme_bw()
 p <- p + theme(legend.position="none")
 print(p)
 ```
 
+```{r nseplotfxn}
 
-```{r nseplot2}
-pointspersample <- ddply(data.merge, .(PtNum), nrow)
-samples.keep <- subset(pointspersample, V1 > 3)$PtNum
-# samples.keep <- c(18, 31, 38, 53, 64, 8)
-
-plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
-
+plot.nse <- function(plot.data, nsecutpoints, title=NA, ...) {
 p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum))
 p <- p + geom_line(size=1)
 p <- p + geom_point( size=3)
@@ -93,10 +164,163 @@ prog.data <- unique(subset(plot.data, !is.na(progfreedays))[, c("PtNum", "progfr
 p <- p + geom_vline(data=prog.data, aes(xintercept=as.numeric(progfreedays)), color="red")
 # p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8, color="red")
 
+# Draw cutpoints
+p <- p + geom_hline(data=nse.cutpoints, aes(yintercept=y))
+
 p <- p + facet_wrap(~ PtNum, scale="free_x")
-p <- p + labs(x="Days from Dx", y="NSE (ug)")
+p <- p + labs(x="Days from Dx", y="NSE (ug)", title=title)
 
 p <- p + theme_bw()
 p <- p + theme(legend.position="none")
-print(p)
+
+p
+
+}
+
 ```
+
+
+```{r nseplot2, fig.width=15, fig.height=7}
+pointspersample <- ddply(data.merge, .(PtNum), nrow)
+samples.keep <- subset(pointspersample, V1 > 3)$PtNum
+# samples.keep <- c(18, 31, 38, 53, 64, 8)
+
+plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
+
+p.progressed <- plot.nse(subset(plot.data, progressed == "Progression"), nse.cutpoints, title="Progression")
+p.noprogressed <- plot.nse(subset(plot.data, progressed == "No Progression"), nse.cutpoints, title="No Progression")
+
+grid.arrange(p.progressed, p.noprogressed, ncol=2)
+
+# p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum))
+# p <- p + geom_line(size=1)
+# p <- p + geom_point( size=3)
+# 
+# # mark the date of progression, if it exists
+# prog.data <- unique(subset(plot.data, !is.na(progfreedays))[, c("PtNum", "progfreedays")])
+# p <- p + geom_vline(data=prog.data, aes(xintercept=as.numeric(progfreedays)), color="red")
+# # p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8, color="red")
+# 
+# # Draw cutpoints
+# p <- p + geom_hline(data=nse.cutpoints, aes(yintercept=y))
+# 
+# p <- p + facet_wrap(~ PtNum, scale="free_x")
+# p <- p + labs(x="Days from Dx", y="NSE (ug)")
+# 
+# p <- p + theme_bw()
+# p <- p + theme(legend.position="none")
+# print(p)
+```
+
+## ChrA
+### ChrA old
+
+- WNL: < 25 U/ml
+- above normal: >= 25 until < 53.75
+- high: >= 53.75
+
+### ChrA new
+- WNL: < 84.7 ng/ml
+- above normal: >= 84.7 until < 105.65
+- high: >= 105.65
+
+```{r chratransform}
+# Change the ChrA levels to factors
+chra.old.cutpoints <- c(0, 25, 53.75, 1000)
+chra.new.cutpoints <- c(0, 84.7, 105.65, 1000)
+
+data.merge.chra <- transform(data.merge,
+                             ChrAo.cut=cut(ChrAo, breaks=chra.old.cutpoints, 
+                                           labels=c("WNL", "above normal", "high"),
+                                           ordered_result=TRUE),
+                             ChrAn.cut=cut(ChrAn, breaks=chra.new.cutpoints,
+                                           labels=c("WNL", "above normal", "high"),
+                                           ordered_result=TRUE)
+                             )
+
+```
+
+### Old vs New ChrA
+```{r chraoldvsnewtable, results='asis'}
+tbl <- with(data.merge.chra, table(ChrAo.cut, ChrAn.cut, useNA='always'))
+
+rownames(tbl)[nrow(tbl)] <- "NA"
+colnames(tbl)[ncol(tbl)] <- "NA"
+
+xtbl <- xtable(tbl, include.rownames=FALSE)
+
+print(xtbl)
+
+```
+
+### ChrA new values summary distribution
+```{r chrasummary1}
+#pointspersample <- ddply(data.merge, .(PtNum), function (x) sum(!is.na(x$ChrAn)))
+# samples.keep <- subset(pointspersample, V1 > 3)$PtNum
+# samples.keep <- c(18, 31, 38, 53, 64, 8)
+samples.keep <- metadata$id
+
+plot.data <- subset(data.merge, !is.na(ChrAn) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
+
+p1 <- ggplot(plot.data, aes(x=ChrAn, group=progressed, color=progressed))
+p1 <-p1 + geom_density()
+p1 <- p1 + scale_x_log10()
+p1 <- p1 + scale_color_manual(values=c("red", "blue"))
+p1 <- p1 + theme_bw()
+p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
+                 axis.title.x=element_blank(), legend.position="none")
+
+p2 <- ggplot(plot.data, aes(y=ChrAn, x=progressed, color=progressed))
+p2 <- p2 + scale_y_log10()
+p2 <-p2 + geom_boxplot()
+p2 <- p2 + scale_color_manual(values=c("red", "blue"))
+p2 <- p2 + coord_flip()
+
+p2 <- p2 + theme_bw()
+p2 <- p2 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(), legend.position="bottom")
+p2 <- p2 + labs(y="log10(ChrAn)")
+
+grid.arrange(p1, p2, nrow=2, heights = unit(c(2,1), "null"))
+```
+
+### ChrA new values, before vs after progression
+
+```{r results='asis'}
+tbl <- ddply(data.merge, .(beforeprogression, progressed), function(x) median(x$ChrAn, na.rm=TRUE))
+colnames(tbl) <- c("Before or After", "Progressed", "ChrAn")
+tbl <- tbl[1:3, ]
+xtbl <- xtable(tbl)
+print(xtbl)
+```
+
+
+```{r chrasummary2}
+#pointspersample <- ddply(data.merge, .(PtNum), function (x) sum(!is.na(x$ChrAn)))
+# samples.keep <- subset(pointspersample, V1 > 3)$PtNum
+# samples.keep <- c(18, 31, 38, 53, 64, 8)
+samples.keep <- metadata$id
+
+plot.data <- subset(data.merge, !is.na(ChrAn) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
+
+p1 <- ggplot(plot.data, aes(x=ChrAn, group=beforeprogression, color=beforeprogression))
+p1 <-p1 + geom_density()
+p1 <- p1 + scale_x_log10()
+p1 <- p1 + scale_color_manual(values=c("red", "blue"))
+p1 <- p1 + theme_bw()
+p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
+                 axis.title.x=element_blank(), legend.position="none")
+
+p2 <- ggplot(plot.data, aes(y=ChrAn, x=beforeprogression, color=beforeprogression))
+p2 <- p2 + scale_y_log10()
+p2 <-p2 + geom_boxplot()
+p2 <- p2 + scale_color_manual(values=c("red", "blue"))
+p2 <- p2 + coord_flip()
+
+p2 <- p2 + theme_bw()
+p2 <- p2 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(), legend.position="bottom")
+p2 <- p2 + labs(y="log10(ChrAn)")
+
+grid.arrange(p1, p2, nrow=2, heights = unit(c(2,1), "null"))
+```
+
+
