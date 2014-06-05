@@ -40,21 +40,35 @@ data.merge <- transform(data.merge,
                         firstprg=as.Date(firstprg, format="%m/%d/%Y"))
 
 data.merge <- transform(data.merge,
-                        mccdxday=0,
                         DateDays=difftime(Date, mccdxdat, units="days"),
-                        progfreedays=difftime(progfree, mccdxdat, units="days"),
+                        
+                        progfreedays=ifelse(is.na(progfree),
+                                            difftime(firstprg, mccdxdat, units="days"),
+                                            difftime(progfree, mccdxdat, unit="days")),
+                        
+                        firstprgdays=difftime(firstprg, mccdxdat, units="days"),
+                        
                         DateWeeks=difftime(Date, mccdxdat, units="weeks"),
-                        progfreeweeks=difftime(progfree, mccdxdat, units="weeks"),
+
+                        progfreeweeks=ifelse(is.na(progfree),
+                                             difftime(firstprg, mccdxdat, units="weeks"),
+                                             difftime(progfree, mccdxdat, unit="weeks")),
+                        
                         progressed=factor(is.na(firstprg),
                                            levels=c(TRUE, FALSE),
                                            labels=c("No Progression", "Progression"),
-                                           ordered=TRUE),
-                        beforeprogression=factor(Date <= firstprg, 
-                                                 levels=c(TRUE, FALSE),
-                                                 labels=c("Before Progression", "After Progression"),
-                                                 ordered=TRUE))
+                                           ordered=TRUE)
+                        )
 
-# head(data.merge[, c("beforeprogression", "progressed", "progfree", "firstprg")])
+beforeprogression <- with(data.merge, Date <= firstprg)
+beforeprogression[is.na(beforeprogression)] <- "No Progression"
+
+data.merge$beforeprogression <- factor(beforeprogression,
+                                       levels=c("No Progression", TRUE, FALSE),
+                                       labels=c("No Progression", "Before Progression", "After Progression"),
+                                       ordered=TRUE)
+
+head(data.merge[, c("beforeprogression", "progressed", "progfree", "firstprg", "firstprgdays")])
 
 ```
 
@@ -74,16 +88,16 @@ samples.keep <- subset(pointspersample, V1 > 3)$PtNum
 
 plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
 
-p1 <- ggplot(plot.data, aes(x=NSE, group=progressed, color=progressed))
+p1 <- ggplot(plot.data, aes(x=NSE, group=beforeprogression, color=beforeprogression))
 p1 <-p1 + geom_density()
-p1 <- p1 + scale_color_manual(values=c("red", "blue"))
+p1 <- p1 + scale_color_manual(values=c("red", "blue", "green"))
 p1 <- p1 + theme_bw()
 p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
                  axis.title.x=element_blank(), legend.position="none")
 
-p2 <- ggplot(plot.data, aes(y=NSE, x=progressed, color=progressed))
+p2 <- ggplot(plot.data, aes(y=NSE, x=beforeprogression, color=beforeprogression))
 p2 <-p2 + geom_boxplot()
-p2 <- p2 + scale_color_manual(values=c("red", "blue"))
+p2 <- p2 + scale_color_manual(values=c("red", "blue", "green"))
 p2 <- p2 + coord_flip()
 
 p2 <- p2 + theme_bw()
@@ -94,7 +108,7 @@ grid.arrange(p1, p2, nrow=2, heights = unit(c(2,1), "null"))
 
 ### NSE summary distribution, before vs after progression
 
-```{r nsebeforevsafter}
+```{r nsebeforevsafter, include=FALSE}
 nse.cutpoints <- data.frame(y=c(17, 24.3))
 
 pointspersample <- ddply(data.merge, .(PtNum), nrow)
@@ -105,14 +119,14 @@ plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum 
 
 p1 <- ggplot(plot.data, aes(x=NSE, group=beforeprogression, color=beforeprogression))
 p1 <-p1 + geom_density()
-p1 <- p1 + scale_color_manual(values=c("red", "blue"))
+p1 <- p1 + scale_color_manual(values=c("red", "blue", "green"))
 p1 <- p1 + theme_bw()
 p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
                  axis.title.x=element_blank(), legend.position="none")
 
 p2 <- ggplot(plot.data, aes(y=NSE, x=beforeprogression, color=beforeprogression))
 p2 <-p2 + geom_boxplot()
-p2 <- p2 + scale_color_manual(values=c("red", "blue"))
+p2 <- p2 + scale_color_manual(values=c("red", "blue", "green"))
 p2 <- p2 + coord_flip()
 
 p2 <- p2 + theme_bw()
@@ -123,12 +137,12 @@ grid.arrange(p1, p2, nrow=2, heights = unit(c(2,1), "null"))
 
 
 ```{r nseplot1}
-
 nse.cutpoints <- data.frame(y=c(17, 24.3))
 
-pointspersample <- ddply(data.merge, .(PtNum), nrow)
-samples.keep <- subset(pointspersample, V1 > 3)$PtNum
+# pointspersample <- ddply(data.merge, .(PtNum), nrow)
+# samples.keep <- subset(pointspersample, V1 > 3)$PtNum
 # samples.keep <- c(18, 31, 38, 53, 64, 8)
+samples.keep <- metadata$id
 
 plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
 
@@ -160,8 +174,8 @@ p <- p + geom_line(size=1)
 p <- p + geom_point( size=3)
 
 # mark the date of progression, if it exists
-prog.data <- unique(subset(plot.data, !is.na(progfreedays))[, c("PtNum", "progfreedays")])
-p <- p + geom_vline(data=prog.data, aes(xintercept=as.numeric(progfreedays)), color="red")
+prog.data <- unique(subset(plot.data, !is.na(firstprgdays))[, c("PtNum", "firstprgdays")])
+p <- p + geom_vline(data=prog.data, aes(xintercept=as.numeric(firstprgdays)), color="red")
 # p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8, color="red")
 
 # Draw cutpoints
@@ -181,10 +195,10 @@ p
 
 
 ```{r nseplot2, fig.width=15, fig.height=7}
-pointspersample <- ddply(data.merge, .(PtNum), nrow)
-samples.keep <- subset(pointspersample, V1 > 3)$PtNum
+# pointspersample <- ddply(data.merge, .(PtNum), nrow)
+# samples.keep <- subset(pointspersample, V1 > 3)$PtNum
 # samples.keep <- c(18, 31, 38, 53, 64, 8)
-
+samples.keep <- metadata$id
 plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
 
 p.progressed <- plot.nse(subset(plot.data, progressed == "Progression"), nse.cutpoints, title="Progression")
@@ -192,24 +206,6 @@ p.noprogressed <- plot.nse(subset(plot.data, progressed == "No Progression"), ns
 
 grid.arrange(p.progressed, p.noprogressed, ncol=2)
 
-# p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum))
-# p <- p + geom_line(size=1)
-# p <- p + geom_point( size=3)
-# 
-# # mark the date of progression, if it exists
-# prog.data <- unique(subset(plot.data, !is.na(progfreedays))[, c("PtNum", "progfreedays")])
-# p <- p + geom_vline(data=prog.data, aes(xintercept=as.numeric(progfreedays)), color="red")
-# # p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8, color="red")
-# 
-# # Draw cutpoints
-# p <- p + geom_hline(data=nse.cutpoints, aes(yintercept=y))
-# 
-# p <- p + facet_wrap(~ PtNum, scale="free_x")
-# p <- p + labs(x="Days from Dx", y="NSE (ug)")
-# 
-# p <- p + theme_bw()
-# p <- p + theme(legend.position="none")
-# print(p)
 ```
 
 ## ChrA
@@ -265,7 +261,7 @@ plot.data <- subset(data.merge, !is.na(ChrAn) & as.numeric(DateDays) >= 0 & PtNu
 p1 <- ggplot(plot.data, aes(x=ChrAn, group=progressed, color=progressed))
 p1 <-p1 + geom_density()
 p1 <- p1 + scale_x_log10()
-p1 <- p1 + scale_color_manual(values=c("red", "blue"))
+p1 <- p1 + scale_color_manual(values=c("red", "blue", "green"))
 p1 <- p1 + theme_bw()
 p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
                  axis.title.x=element_blank(), legend.position="none")
@@ -273,7 +269,7 @@ p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
 p2 <- ggplot(plot.data, aes(y=ChrAn, x=progressed, color=progressed))
 p2 <- p2 + scale_y_log10()
 p2 <-p2 + geom_boxplot()
-p2 <- p2 + scale_color_manual(values=c("red", "blue"))
+p2 <- p2 + scale_color_manual(values=c("red", "blue", "green"))
 p2 <- p2 + coord_flip()
 
 p2 <- p2 + theme_bw()
@@ -305,7 +301,7 @@ plot.data <- subset(data.merge, !is.na(ChrAn) & as.numeric(DateDays) >= 0 & PtNu
 p1 <- ggplot(plot.data, aes(x=ChrAn, group=beforeprogression, color=beforeprogression))
 p1 <-p1 + geom_density()
 p1 <- p1 + scale_x_log10()
-p1 <- p1 + scale_color_manual(values=c("red", "blue"))
+p1 <- p1 + scale_color_manual(values=c("red", "blue", "green"))
 p1 <- p1 + theme_bw()
 p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
                  axis.title.x=element_blank(), legend.position="none")
@@ -313,7 +309,7 @@ p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
 p2 <- ggplot(plot.data, aes(y=ChrAn, x=beforeprogression, color=beforeprogression))
 p2 <- p2 + scale_y_log10()
 p2 <-p2 + geom_boxplot()
-p2 <- p2 + scale_color_manual(values=c("red", "blue"))
+p2 <- p2 + scale_color_manual(values=c("red", "blue", "green"))
 p2 <- p2 + coord_flip()
 
 p2 <- p2 + theme_bw()
