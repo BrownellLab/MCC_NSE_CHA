@@ -27,7 +27,7 @@ data <- read.csv("data/2014-06-03_NSE_ChrA_all.csv",
 
 metadata <- read.csv("data/2014-06-03_MCC_Dx_Px_dates.csv")
 
-metadata.cols <- c("id", "mccdxdat", "progfree", "firstprg")
+metadata.cols <- c("id", "mccdxdat", "progfree", "firstprg", "nse1date", "chrne1da")
 metadata.use <- metadata[, metadata.cols]
 metadata.use[metadata.use == ""] <- NA
 
@@ -37,7 +37,9 @@ data.merge <- transform(data.merge,
                         Date=as.Date(Date, format="%m/%d/%Y"),
                         mccdxdat=as.Date(mccdxdat, format="%m/%d/%Y"),
                         progfree=as.Date(progfree, format="%m/%d/%Y"),
-                        firstprg=as.Date(firstprg, format="%m/%d/%Y"))
+                        firstprg=as.Date(firstprg, format="%m/%d/%Y"),
+                        nse1date=as.Date(nse1date, format="%m/%d/%Y"),
+                        chrne1da=as.Date(chrne1da, format="%m/%d/%Y"))
 
 data.merge <- transform(data.merge,
                         DateDays=difftime(Date, mccdxdat, units="days"),
@@ -57,7 +59,10 @@ data.merge <- transform(data.merge,
                         progressed=factor(is.na(firstprg),
                                            levels=c(TRUE, FALSE),
                                            labels=c("No Progression", "Progression"),
-                                           ordered=TRUE)
+                                           ordered=TRUE),
+                        
+                        closestnsedate=Date == nse1date,
+                        closestchradate=Date == chrne1da
                         )
 
 beforeprogression <- with(data.merge, Date <= firstprg)
@@ -76,6 +81,20 @@ head(data.merge[, c("beforeprogression", "progressed", "progfree", "firstprg", "
 - WNL: < 17 ug
 - above normal: >= 17 until 24.3
 - high: > 24.3
+
+### ChrA new values quantiles
+
+```{r}
+summary(data.merge$NSE)
+```
+
+```{r results='asis'}
+tbl <- ddply(data.merge, .(beforeprogression), function(x) quantile(x$NSE, probs=c(0, 0.25, 0.5, 0.75, 1), na.rm=TRUE))
+colnames(tbl)[1] <- "Progression status"
+# tbl <- tbl[1:3, ]
+xtbl <- xtable(tbl)
+print(xtbl)
+```
 
 ### NSE summary distribution, testing date progression status
 
@@ -127,6 +146,10 @@ p <- p + geom_point(aes(color=PtNum), size=3)
 min.plot.data <- ddply(plot.data, .(PtNum), function(x) x[which(min(x$Date) == x$Date), ])
 p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8)
 
+# get the closest test date to progression
+closest.prog <- subset(plot.data, closestnsedate & progressed == "Progression")
+p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape=8, size=6)
+
 # Draw cutpoints
 p <- p + geom_hline(data=nse.cutpoints, aes(yintercept=y))
 
@@ -149,6 +172,10 @@ p <- p + geom_point( size=3)
 prog.data <- unique(subset(plot.data, !is.na(firstprgdays))[, c("PtNum", "firstprgdays")])
 p <- p + geom_vline(data=prog.data, aes(xintercept=as.numeric(firstprgdays)), color="red")
 # p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8, color="red")
+
+# get the closest test date to progression
+closest.prog <- subset(plot.data, closestnsedate & progressed == "Progression")
+p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape=8, size=6)
 
 # Draw cutpoints
 p <- p + geom_hline(data=nse.cutpoints, aes(yintercept=y))
@@ -251,44 +278,14 @@ p2 <- p2 + labs(y="log10(ChrAn)")
 grid.arrange(p1, p2, nrow=2, heights = unit(c(2,1), "null"))
 ```
 
-### ChrA new values, before vs after progression
+### ChrA new values quantiles
 
 ```{r results='asis'}
-tbl <- ddply(data.merge, .(beforeprogression), function(x) median(x$ChrAn, na.rm=TRUE))
-colnames(tbl) <- c("Progression status", "ChrAn")
+tbl <- ddply(data.merge, .(beforeprogression), function(x) quantile(x$ChrAn, probs=c(0, 0.25, 0.5, 0.75, 1), na.rm=TRUE))
+colnames(tbl)[1] <- "Progression status"
 # tbl <- tbl[1:3, ]
 xtbl <- xtable(tbl)
 print(xtbl)
-```
-
-
-```{r chrasummary2}
-#pointspersample <- ddply(data.merge, .(PtNum), function (x) sum(!is.na(x$ChrAn)))
-# samples.keep <- subset(pointspersample, V1 > 3)$PtNum
-# samples.keep <- c(18, 31, 38, 53, 64, 8)
-samples.keep <- metadata$id
-
-plot.data <- subset(data.merge, !is.na(ChrAn) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
-
-p1 <- ggplot(plot.data, aes(x=ChrAn, group=beforeprogression, color=beforeprogression))
-p1 <-p1 + geom_density()
-p1 <- p1 + scale_x_log10()
-p1 <- p1 + scale_color_manual(values=c("red", "blue", "green"))
-p1 <- p1 + theme_bw()
-p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
-                 axis.title.x=element_blank(), legend.position="none")
-
-p2 <- ggplot(plot.data, aes(y=ChrAn, x=beforeprogression, color=beforeprogression))
-p2 <- p2 + scale_y_log10()
-p2 <-p2 + geom_boxplot()
-p2 <- p2 + scale_color_manual(values=c("red", "blue", "green"))
-p2 <- p2 + coord_flip()
-
-p2 <- p2 + theme_bw()
-p2 <- p2 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(), legend.position="bottom")
-p2 <- p2 + labs(y="log10(ChrAn)")
-
-grid.arrange(p1, p2, nrow=2, heights = unit(c(2,1), "null"))
 ```
 
 
