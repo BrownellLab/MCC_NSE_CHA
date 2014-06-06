@@ -73,8 +73,9 @@ data.merge <- transform(data.merge,
                         chraprgdaold=as.Date(chraprgdaold, format="%m/%d/%Y")
                         )
 
-data.merge <- transform(data.merge, 
-                        chraprgda=ifelse(is.na(chraprgdanew), chraprgdaold, chraprgdanew))
+data.merge$chraprgda <-data.merge$chraprgdanew
+baddate <- is.na(data.merge$chraprgdanew)
+data.merge$chraprgda[baddate] <- data.merge$chraprgdaold[baddate]
 
 data.merge <- transform(data.merge,
                         DateDays=difftime(Date, mccdxdat, units="days"),
@@ -97,7 +98,7 @@ data.merge <- transform(data.merge,
                                            ordered=TRUE),
                         
                         closestnsedate=Date == nseprgda,
-                        closestchradate=Date == chrne1da
+                        closestchradate=Date == chraprgda
                         )
 
 beforeprogression <- with(data.merge, Date <= firstprg)
@@ -256,7 +257,7 @@ plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum 
 p.progressed <- plot.nse(subset(plot.data, progressed == "Progression"), nse.cutpoints, title="Progression")
 p.noprogressed <- plot.nse(subset(plot.data, progressed == "No Progression"), nse.cutpoints, title="No Progression")
 
-grid.arrange(p.progressed, p.noprogressed, ncol=2)
+grid.arrange(p.noprogressed, p.progressed, ncol=2)
 
 ```
 
@@ -277,6 +278,32 @@ grid.arrange(p.progressed, p.noprogressed, ncol=2)
 summary(subset(data.merge, ChrAn >= lab.thresh.ChrAnew)$ChrAn)
 ```
 
+
+### ChrA data per patient
+
+```{r chraplot1}
+plot.data <- subset(data.merge, !is.na(ChrA.cut))
+
+p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum))
+p <- p + geom_line(aes(color=PtNum), size=1)
+p <- p + geom_point(aes(color=PtNum), size=3)
+# p <- p + facet_wrap(~ PtNum)
+
+# Get the first point to highlight
+min.plot.data <- ddply(plot.data, .(PtNum), function(x) x[which(min(x$Date) == x$Date), ])
+p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum), shape="*", size=8)
+
+# get the closest test date to progression
+closest.prog <- subset(plot.data, closestchradate & progressed == "Progression")
+p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum), shape=8, size=6)
+
+p <- p + facet_grid(~ progressed)
+
+p <- p + labs(x="Days from Dx", y="ChrA level")
+p <- p + theme_bw()
+p <- p + theme(legend.position="none")
+print(p)
+```
 
 ```{r chraplotfxn}
 
@@ -306,13 +333,13 @@ p
 
 ```
 
-```{r plotchra1, fig.width=15, fig.height=7}
+```{r plotchra2, fig.width=15, fig.height=7}
 plot.data <- subset(data.merge, !is.na(ChrA.cut))
 
 p.progressed <- plot.chra(subset(plot.data, progressed == "Progression"), title="Progression")
 p.noprogressed <- plot.chra(subset(plot.data, progressed == "No Progression"), title="No Progression")
 
-grid.arrange(p.progressed, p.noprogressed, ncol=2)
+grid.arrange(p.noprogressed, p.progressed, ncol=2)
 
 
 ```
