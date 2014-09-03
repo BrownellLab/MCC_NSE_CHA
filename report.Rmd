@@ -227,9 +227,9 @@ prog.data <- unique(subset(plot.data, !is.na(firstprgdays))[, c("PtNum", "firstp
 p <- p + geom_vline(data=prog.data, aes(xintercept=as.numeric(firstprgdays)), color="red")
 # p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8, color="red")
 
-# get the closest test date to progression
-closest.prog <- subset(plot.data, closestnsedate & progressed == "Progression")
-p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape=8, size=6)
+# # get the closest test date to progression
+# closest.prog <- subset(plot.data, closestnsedate & progressed == "Progression")
+# p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape=8, size=6)
 
 # Draw cutpoints
 p <- p + geom_hline(data=nse.cutpoints, aes(yintercept=y))
@@ -293,9 +293,9 @@ p <- p + geom_point(aes(color=PtNum), size=3)
 min.plot.data <- ddply(plot.data, .(PtNum), function(x) x[which(min(x$Date) == x$Date), ])
 p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum), shape="*", size=8)
 
-# get the closest test date to progression
-closest.prog <- subset(plot.data, closestchradate & progressed == "Progression")
-p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum), shape=8, size=6)
+# # get the closest test date to progression
+# closest.prog <- subset(plot.data, closestchradate & progressed == "Progression")
+# p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum), shape=8, size=6)
 
 p <- p + facet_grid(~ progressed)
 
@@ -317,9 +317,9 @@ prog.data <- unique(subset(plot.data, !is.na(firstprgdays))[, c("PtNum", "firstp
 p <- p + geom_vline(data=prog.data, aes(xintercept=as.numeric(firstprgdays)), color="red")
 # p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8, color="red")
 
-# get the closest test date to progression
-closest.prog <- subset(plot.data, closestchradate & progressed == "Progression")
-p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum), shape=8, size=6)
+# # get the closest test date to progression
+# closest.prog <- subset(plot.data, closestchradate & progressed == "Progression")
+# p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum), shape=8, size=6)
 
 p <- p + facet_wrap(~ PtNum, scale="free_x")
 p <- p + labs(x="Days from Dx", y="ChrA level", title=title)
