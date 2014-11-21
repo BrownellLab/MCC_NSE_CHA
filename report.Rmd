@@ -50,12 +50,14 @@ ddpfcl <- function(a) {
 
 ```{r loaddata}
 
-data <- read.csv("data/2014-06-03_NSE_ChrA_all.csv",
-                 colClasses=c("factor", "character", "numeric", "numeric", "numeric"))
+data <- read.csv("data/2014-10-01_NSE_ChrA_all_values_RecandTxend.csv",
+                 colClasses=c("factor", "character", "numeric", "numeric", 
+                              "numeric", "factor", "factor"))
 
 metadata <- read.csv("data/2014-06-03_MCC_Dx_Px_dates.csv")
 
-metadata.cols <- c("id", "mccdxdat", "progfree", "firstprg", "nseprgda", "nse1date", "chrne1da", "chraprgdanew", "chraprgdaold")
+metadata.cols <- c("id", "mccdxdat", "progfree", "firstprg", "nseprgda",
+                   "nse1date", "chrne1da", "chraprgdanew", "chraprgdaold")
 metadata.use <- metadata[, metadata.cols]
 metadata.use[metadata.use == ""] <- NA
 
