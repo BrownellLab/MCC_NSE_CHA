@@ -1,7 +1,7 @@
 ---
 title: "MCC NSE CHA"
 author: "Kenneth Daily"
-date: "06/04/2014"
+date: "01/28/2015"
 output: html_document
 ---
 
@@ -10,6 +10,7 @@ output: html_document
 library(ggplot2)
 library(reshape)
 library(plyr)
+library(dplyr)
 library(RColorBrewer)
 library(knitr)
 library(xtable)
@@ -20,111 +21,39 @@ opts_chunk$set(comment=NA, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE
 
 lab.thresh.NSE <- 17
 lab.thresh.ChrAnew <- 84.7
-
-findclosestdatebefore <- function(dates, refdate, checkorder=FALSE) {
-  
-  if (all(is.na(dates))) {
-    return(NA)
-  }
-  
-  if (is.na(refdate)) {
-    return(NA)
-  }
-  
-  # find the closest date occuring before a reference date
-  result <- dates[with(data.pt, which.min(dates - refdate))]
-  if (checkorder & result > refdate) {
-    result <- NA
-    }
-  
-  result
-}
-
-
-ddpfcl <- function(a) {
-  refdate <- a$firstprg[1]
-  findclosestdatebefore(a$Date, refdate)
-}
-
 ```
 
 ```{r loaddata}
 
-data <- read.csv("data/2014-10-01_NSE_ChrA_all_values_RecandTxend.csv",
-                 colClasses=c("factor", "character", "numeric", "numeric", 
-                              "numeric", "factor", "factor"))
+data <- read.delim("data/NSE_ChrA_all_values_categorical.csv", sep=",", na.strings="",
+                   colClasses=c("factor", "character", "numeric", "factor", "numeric", 
+                                "numeric", "factor", "factor", "factor", "factor"),
+                   )
 
-metadata <- read.csv("data/2014-06-03_MCC_Dx_Px_dates.csv")
-
-metadata.cols <- c("id", "mccdxdat", "progfree", "firstprg", "nseprgda",
-                   "nse1date", "chrne1da", "chraprgdanew", "chraprgdaold")
-metadata.use <- metadata[, metadata.cols]
-metadata.use[metadata.use == ""] <- NA
-
-data.merge <- merge(data, metadata.use, by.x="PtNum", by.y="id")
+data.merge <- data
 
 data.merge <- transform(data.merge,
-                        Date=as.Date(Date, format="%m/%d/%Y"),
-                        mccdxdat=as.Date(mccdxdat, format="%m/%d/%Y"),
-                        progfree=as.Date(progfree, format="%m/%d/%Y"),
-                        firstprg=as.Date(firstprg, format="%m/%d/%Y"),
-                        nse1date=as.Date(nse1date, format="%m/%d/%Y"),
-                        nseprgda=as.Date(nseprgda, format="%m/%d/%Y"),
-                        chrne1da=as.Date(chrne1da, format="%m/%d/%Y"),
-                        chraprgdanew=as.Date(chraprgdanew, format="%m/%d/%Y"),
-                        chraprgdaold=as.Date(chraprgdaold, format="%m/%d/%Y")
-                        )
+                        Date=as.Date(Date, format="%m/%d/%Y"))
 
-data.merge$chraprgda <-data.merge$chraprgdanew
-baddate <- is.na(data.merge$chraprgdanew)
-data.merge$chraprgda[baddate] <- data.merge$chraprgdaold[baddate]
+datedays <- ddply(data.merge, .(PtNum), 
+                  function(x) data.frame(DateDays=difftime(x$Date, min(x$Date), units="days")))
 
-data.merge <- transform(data.merge,
-                        DateDays=difftime(Date, mccdxdat, units="days"),
-                        
-                        progfreedays=ifelse(is.na(progfree),
-                                            difftime(firstprg, mccdxdat, units="days"),
-                                            difftime(progfree, mccdxdat, unit="days")),
-                        
-                        firstprgdays=difftime(firstprg, mccdxdat, units="days"),
-                        
-                        DateWeeks=difftime(Date, mccdxdat, units="weeks"),
-
-                        progfreeweeks=ifelse(is.na(progfree),
-                                             difftime(firstprg, mccdxdat, units="weeks"),
-                                             difftime(progfree, mccdxdat, unit="weeks")),
-                        
-                        progressed=factor(is.na(firstprg),
-                                           levels=c(TRUE, FALSE),
-                                           labels=c("No Progression", "Progression"),
-                                           ordered=TRUE),
-                        
-                        closestnsedate=Date == nseprgda,
-                        closestchradate=Date == chraprgda
-                        )
-
-beforeprogression <- with(data.merge, Date <= firstprg)
-beforeprogression[is.na(beforeprogression)] <- "No Progression"
-
-data.merge$beforeprogression <- factor(beforeprogression,
-                                       levels=c("No Progression", TRUE, FALSE),
-                                       labels=c("No Progression", "Before Progression", "After Progression"),
-                                       ordered=TRUE)
+data.merge$DateDays <- datedays$DateDays
 
 chra.old.cutpoints <- c(0, 25, 53.75, 1000)
 chra.new.cutpoints <- c(0, 84.7, 105.65, 1000)
 
-data.merge <- transform(data.merge,
-                        ChrAo.cut=cut(ChrAo, breaks=chra.old.cutpoints, 
-                                      labels=c("WNL", "above normal", "high"),
-                                      ordered_result=TRUE),
-                        ChrAn.cut=cut(ChrAn, breaks=chra.new.cutpoints,
-                                      labels=c("WNL", "above normal", "high"),
-                                      ordered_result=TRUE)
-                        )
-
-data.merge$ChrA.cut <- factor(with(data.merge, ifelse(is.na(ChrAn.cut), as.character(ChrAo.cut), as.character(ChrAn.cut))),
-                              levels=c("WNL", "above normal", "high"), ordered=TRUE)
+# data.merge <- transform(data.merge,
+#                         ChrAo.cut=cut(ChrAo, breaks=chra.old.cutpoints, 
+#                                       labels=c("WNL", "above normal", "high"),
+#                                       ordered_result=TRUE),
+#                         ChrAn.cut=cut(ChrAn, breaks=chra.new.cutpoints,
+#                                       labels=c("WNL", "above normal", "high"),
+#                                       ordered_result=TRUE)
+#                         )
+# 
+# data.merge$ChrA.cut <- factor(with(data.merge, ifelse(is.na(ChrAn.cut), as.character(ChrAo.cut), as.character(ChrAn.cut))),
+#                               levels=c("WNL", "above normal", "high"), ordered=TRUE)
 
 # foo <- ddply(data.merge, .(PtNum), ddpfcl)
 # colnames(foo) <- c("PtNum", "mintestdate")
@@ -133,117 +62,17 @@ data.merge$ChrA.cut <- factor(with(data.merge, ifelse(is.na(ChrAn.cut), as.chara
 
 ```
 
-## NSE
-- WNL: < 17 ug
-- above normal: >= 17 until 24.3
-- high: > 24.3
-
-## Summary of data above lab-determined NSE threshold of `r lab.thresh.NSE`
-```{r}
-summary(subset(data.merge, NSE > lab.thresh.NSE)$NSE)
-```
-
-### Table of progression status and NSE data availability
-```{r, results='asis'}
-foo <- ddply(data.merge, .(PtNum), function(x) data.frame(progressed=any(x$progressed == "Progression"), NSE=any(!is.na(x$NSE))))
-tbl <- with(foo, table(progressed, NSE))
-rownames(tbl) <- c("No Progression", "Progression")
-colnames(tbl) <- c("NSE not available", "NSE available")
-xtable(tbl)
-```
-
-### NSE summary distribution, testing date progression status
-
-```{r nsesummary, include=FALSE}
-nse.cutpoints <- data.frame(y=c(17, 24.3))
-
-pointspersample <- ddply(data.merge, .(PtNum), nrow)
-samples.keep <- subset(pointspersample, V1 > 3)$PtNum
-# samples.keep <- c(18, 31, 38, 53, 64, 8)
-
-plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
-
-p1 <- ggplot(plot.data, aes(x=NSE, group=beforeprogression, color=beforeprogression))
-p1 <-p1 + geom_density()
-p1 <- p1 + scale_color_manual(values=c("red", "blue", "green"))
-p1 <- p1 + theme_bw()
-p1 <- p1 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(),
-                 axis.title.x=element_blank(), legend.position="none")
-
-p2 <- ggplot(plot.data, aes(y=NSE, x=beforeprogression, color=beforeprogression))
-p2 <-p2 + geom_boxplot()
-p2 <- p2 + scale_color_manual(values=c("red", "blue", "green"))
-p2 <- p2 + coord_flip()
-
-p2 <- p2 + theme_bw()
-p2 <- p2 + theme(axis.text.y=element_blank(), axis.title.y=element_blank(), legend.position="bottom")
-
-grid.arrange(p1, p2, nrow=2, heights = unit(c(2,1), "null"))
-```
-
 ### NSE data per patient
 
 ```{r nseplot1}
 nse.cutpoints <- data.frame(y=c(17, 24.3))
-
-# pointspersample <- ddply(data.merge, .(PtNum), nrow)
-# samples.keep <- subset(pointspersample, V1 > 3)$PtNum
-# samples.keep <- c(18, 31, 38, 53, 64, 8)
-samples.keep <- metadata$id
-
-plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
-
-p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum))
-p <- p + geom_line(aes(color=PtNum), size=1)
-p <- p + geom_point(aes(color=PtNum), size=3)
-# p <- p + facet_wrap(~ PtNum)
-
-# Get the first point to highlight
-min.plot.data <- ddply(plot.data, .(PtNum), function(x) x[which(min(x$Date) == x$Date), ])
-p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8)
-
-# get the closest test date to progression
-closest.prog <- subset(plot.data, closestnsedate & progressed == "Progression")
-p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape=8, size=6)
-
-# Draw cutpoints
-p <- p + geom_hline(data=nse.cutpoints, aes(yintercept=y))
-
-p <- p + facet_grid(~ progressed)
-
-p <- p + labs(x="Days from Dx", y="NSE (ug)")
-p <- p + theme_bw()
-p <- p + theme(legend.position="none")
-print(p)
 ```
 
 ```{r nseplotfxn}
 
-plot.nse <- function(plot.data, nsecutpoints, title=NA, ...) {
-p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum))
-p <- p + geom_line(size=1)
-p <- p + geom_point( size=3)
-
-# mark the date of progression, if it exists
-prog.data <- unique(subset(plot.data, !is.na(firstprgdays))[, c("PtNum", "firstprgdays")])
-p <- p + geom_vline(data=prog.data, aes(xintercept=as.numeric(firstprgdays)), color="red")
-# p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8, color="red")
-
-# # get the closest test date to progression
-# closest.prog <- subset(plot.data, closestnsedate & progressed == "Progression")
-# p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape=8, size=6)
-
-# Draw cutpoints
-p <- p + geom_hline(data=nse.cutpoints, aes(yintercept=y))
-
-p <- p + facet_wrap(~ PtNum, scale="free_x")
-p <- p + labs(x="Days from Dx", y="NSE (ug)", title=title)
-
-p <- p + theme_bw()
-p <- p + theme(legend.position="none")
-
-p
-
+plotNSE <- function(plot.data, nsecutpoints=NA, title=NA, ...) {  
+  p
+  
 }
 
 ```
@@ -253,95 +82,57 @@ p
 # pointspersample <- ddply(data.merge, .(PtNum), nrow)
 # samples.keep <- subset(pointspersample, V1 > 3)$PtNum
 # samples.keep <- c(18, 31, 38, 53, 64, 8)
-samples.keep <- metadata$id
-plot.data <- subset(data.merge, !is.na(NSE) & as.numeric(DateDays) >= 0 & PtNum %in% samples.keep)
+# samples.keep <- metadata$id
+plot.data <- subset(data.merge, !is.na(NSE))
 
-p.progressed <- plot.nse(subset(plot.data, progressed == "Progression"), nse.cutpoints, title="Progression")
-p.noprogressed <- plot.nse(subset(plot.data, progressed == "No Progression"), nse.cutpoints, title="No Progression")
-
-grid.arrange(p.noprogressed, p.progressed, ncol=2)
-
-```
-
-## ChrA
-### ChrA old
-
-- WNL: < 25 U/ml
-- above normal: >= 25 until < 53.75
-- high: >= 53.75
-
-### ChrA new
-- WNL: < 84.7 ng/ml
-- above normal: >= 84.7 until < 105.65
-- high: >= 105.65
-
-### Summary of data above lab-determined new ChrA threshold of `r lab.thresh.ChrAnew`
-```{r}
-summary(subset(data.merge, ChrAn >= lab.thresh.ChrAnew)$ChrAn)
-```
-
-
-### ChrA data per patient
-
-```{r chraplot1}
-plot.data <- subset(data.merge, !is.na(ChrA.cut))
-
-p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum))
-p <- p + geom_line(aes(color=PtNum), size=1)
-p <- p + geom_point(aes(color=PtNum), size=3)
-# p <- p + facet_wrap(~ PtNum)
-
-# Get the first point to highlight
-min.plot.data <- ddply(plot.data, .(PtNum), function(x) x[which(min(x$Date) == x$Date), ])
-p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum), shape="*", size=8)
-
-# # get the closest test date to progression
-# closest.prog <- subset(plot.data, closestchradate & progressed == "Progression")
-# p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum), shape=8, size=6)
-
-p <- p + facet_grid(~ progressed)
-
-p <- p + labs(x="Days from Dx", y="ChrA level")
-p <- p + theme_bw()
-p <- p + theme(legend.position="none")
-print(p)
-```
-
-```{r chraplotfxn}
-
-plot.chra <- function(plot.data, title=NA, ...) {
-p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum))
+p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum))
 p <- p + geom_line(size=1)
-p <- p + geom_point( size=3)
-
-# mark the date of progression, if it exists
-prog.data <- unique(subset(plot.data, !is.na(firstprgdays))[, c("PtNum", "firstprgdays")])
-p <- p + geom_vline(data=prog.data, aes(xintercept=as.numeric(firstprgdays)), color="red")
-# p <- p + geom_point(data=min.plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum), shape="*", size=8, color="red")
-
-# # get the closest test date to progression
-# closest.prog <- subset(plot.data, closestchradate & progressed == "Progression")
-# p <- p + geom_point(data=closest.prog, aes(x=as.numeric(DateDays), y=ChrA.cut, group=PtNum), shape=8, size=6)
+p <- p + geom_point(aes(color=Rec, shape=Txend), size=4)
 
 p <- p + facet_wrap(~ PtNum, scale="free_x")
-p <- p + labs(x="Days from Dx", y="ChrA level", title=title)
+p <- p + labs(x="Days from Dx", y="NSE (ug)", title="NSE")
+
+p <- p + scale_color_manual(values=c("black", "red"))
+p <- p + scale_shape_manual(values=c(1, 16))
 
 p <- p + theme_bw()
-p <- p + theme(legend.position="none")
+# p <- p + theme(legend.position="none")
 
 p
 
-}
+ggsave(filename = "NSE.png", plot=p, width=14, height=10)
+
+# p.progressed <- plot.nse(subset(plot.data, progressed == "Progression"), nse.cutpoints, title="Progression")
+# p.noprogressed <- plot.nse(subset(plot.data, progressed == "No Progression"), nse.cutpoints, title="No Progression")
+# 
+# grid.arrange(p.noprogressed, p.progressed, ncol=2)
 
 ```
 
-```{r plotchra2, fig.width=15, fig.height=7}
-plot.data <- subset(data.merge, !is.na(ChrA.cut))
+```{r plotchracat, fig.width=15, fig.height=7}
+plot.data <- subset(data.merge, !is.na(ChrA_cat))
 
-p.progressed <- plot.chra(subset(plot.data, progressed == "Progression"), title="Progression")
-p.noprogressed <- plot.chra(subset(plot.data, progressed == "No Progression"), title="No Progression")
+p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=ChrA_cat, group=PtNum))
 
-grid.arrange(p.noprogressed, p.progressed, ncol=2)
+p <- p + geom_line(size=1)
+p <- p + geom_point(aes(color=Rec, shape=Txend), size=4)
+
+p <- p + facet_wrap(~ PtNum, scale="free")
+p <- p + labs(x="Days from Dx", y="ChrA categorical level", title="ChrA_cat")
+
+p <- p + scale_color_manual(values=c("black", "red"))
+p <- p + scale_shape_manual(values=c(1, 16))
+
+p <- p + theme_bw()
+# p <- p + theme(legend.position="none")
+p
+
+ggsave(filename = "ChrA_cat.png", plot=p, width=14, height=10)
+
+# p.progressed <- plot.chra(subset(plot.data, progressed == "Progression"), title="Progression")
+# p.noprogressed <- plot.chra(subset(plot.data, progressed == "No Progression"), title="No Progression")
+# 
+# grid.arrange(p.noprogressed, p.progressed, ncol=2)
 
 
 ```
