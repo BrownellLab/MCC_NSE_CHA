@@ -30,30 +30,25 @@ data <- read.delim("data/NSE_ChrA_all_values_categorical.csv", sep=",", na.strin
                                 "numeric", "factor", "factor", "factor", "factor"),
                    )
 
-data.merge <- data
+data <- transform(data,
+                  Date=as.Date(Date, format="%m/%d/%Y"))
 
-data.merge <- transform(data.merge,
-                        Date=as.Date(Date, format="%m/%d/%Y"))
-
-datedays <- ddply(data.merge, .(PtNum), 
+datedays <- ddply(data, .(PtNum), 
                   function(x) data.frame(DateDays=difftime(x$Date, min(x$Date), units="days")))
 
-data.merge$DateDays <- datedays$DateDays
+data$DateDays <- as.numeric(datedays$DateDays)
+
+progression <- data %>% 
+  group_by(PtNum) %>% 
+  summarise(progressed=ifelse(sum(Rec == 1) > 1, 
+                              "Progression",
+                              "No Progression"))
+
+data <- left_join(data, progression, by="PtNum")
+data$progressed <- factor(data$progressed)
 
 chra.old.cutpoints <- c(0, 25, 53.75, 1000)
 chra.new.cutpoints <- c(0, 84.7, 105.65, 1000)
-
-# data.merge <- transform(data.merge,
-#                         ChrAo.cut=cut(ChrAo, breaks=chra.old.cutpoints, 
-#                                       labels=c("WNL", "above normal", "high"),
-#                                       ordered_result=TRUE),
-#                         ChrAn.cut=cut(ChrAn, breaks=chra.new.cutpoints,
-#                                       labels=c("WNL", "above normal", "high"),
-#                                       ordered_result=TRUE)
-#                         )
-# 
-# data.merge$ChrA.cut <- factor(with(data.merge, ifelse(is.na(ChrAn.cut), as.character(ChrAo.cut), as.character(ChrAn.cut))),
-#                               levels=c("WNL", "above normal", "high"), ordered=TRUE)
 
 # foo <- ddply(data.merge, .(PtNum), ddpfcl)
 # colnames(foo) <- c("PtNum", "mintestdate")
@@ -68,71 +63,74 @@ chra.new.cutpoints <- c(0, 84.7, 105.65, 1000)
 nse.cutpoints <- data.frame(y=c(17, 24.3))
 ```
 
-```{r nseplotfxn}
-
-plotNSE <- function(plot.data, nsecutpoints=NA, title=NA, ...) {  
-  p
-  
-}
-
-```
-
-
 ```{r nseplot2, fig.width=15, fig.height=7}
 # pointspersample <- ddply(data.merge, .(PtNum), nrow)
 # samples.keep <- subset(pointspersample, V1 > 3)$PtNum
 # samples.keep <- c(18, 31, 38, 53, 64, 8)
 # samples.keep <- metadata$id
-plot.data <- subset(data.merge, !is.na(NSE))
 
-p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=NSE, group=PtNum))
-p <- p + geom_line(size=1)
-p <- p + geom_point(aes(color=Rec, shape=Txend), size=4)
+plot.data <- subset(data, !is.na(NSE))
 
-p <- p + facet_wrap(~ PtNum, scale="free_x")
-p <- p + labs(x="Days from Dx", y="NSE (ug)", title="NSE")
+plot.nse <- function(data) {
+  p <- ggplot(data, aes(x=DateDays, y=NSE, group=PtNum))
+  p <- p + geom_line(size=1)
+  p <- p + geom_point(aes(color=Txend), size=4)
+  
+  recpoints <- subset(data, Rec == 1)
+  
+  p <- p + geom_vline(data=recpoints, aes(xintercept=DateDays))
+  
+  p <- p + facet_wrap(~ PtNum, scale="free_x")  
+  p <- p + scale_color_manual(values=c("black", "red"))
+  
+  p <- p + theme_bw()
+  p <- p + theme(legend.position="none")
+  
+  p
+}
 
-p <- p + scale_color_manual(values=c("black", "red"))
-p <- p + scale_shape_manual(values=c(1, 16))
+p.progressed <- plot.nse(data=subset(plot.data, progressed == "Progression"))
+p.progressed <- p.progressed + labs(x="Days from Dx", y="NSE (ug)", title="Progression")
 
-p <- p + theme_bw()
-# p <- p + theme(legend.position="none")
+p.noprogressed <- plot.nse(data=subset(plot.data, progressed == "No Progression"))
+p.noprogressed <- p.noprogressed + labs(x="Days from Dx", title="No Progression")
 
-p
-
-ggsave(filename = "NSE.png", plot=p, width=14, height=10)
-
-# p.progressed <- plot.nse(subset(plot.data, progressed == "Progression"), nse.cutpoints, title="Progression")
-# p.noprogressed <- plot.nse(subset(plot.data, progressed == "No Progression"), nse.cutpoints, title="No Progression")
-# 
-# grid.arrange(p.noprogressed, p.progressed, ncol=2)
+png("NSE.png", width=1200, height=750)
+grid.arrange(p.noprogressed, p.progressed, ncol=2)
+dev.off()
 
 ```
 
 ```{r plotchracat, fig.width=15, fig.height=7}
-plot.data <- subset(data.merge, !is.na(ChrA_cat))
+plot.chra <- function(plot.data) {
+  p <- ggplot(plot.data, aes(x=DateDays, y=ChrA_cat, group=PtNum))
+  
+  p <- p + geom_line(size=1)
+  p <- p + geom_point(aes(color=Txend), size=4)
 
-p <- ggplot(plot.data, aes(x=as.numeric(DateDays), y=ChrA_cat, group=PtNum))
+  recpoints <- subset(plot.data, Rec == 1)  
+  p <- p + geom_vline(data=recpoints, aes(xintercept=DateDays))
 
-p <- p + geom_line(size=1)
-p <- p + geom_point(aes(color=Rec, shape=Txend), size=4)
+  p <- p + facet_wrap(~ PtNum, scale="free_x")
+  
+  p <- p + scale_color_manual(values=c("black", "red"))
+  p <- p + scale_shape_manual(values=c(1, 16))
+  
+  p <- p + theme_bw()
+  p <- p + theme(legend.position="none")
+  p
+}
 
-p <- p + facet_wrap(~ PtNum, scale="free")
-p <- p + labs(x="Days from Dx", y="ChrA categorical level", title="ChrA_cat")
+plot.data <- subset(data, !is.na(ChrA_cat))
 
-p <- p + scale_color_manual(values=c("black", "red"))
-p <- p + scale_shape_manual(values=c(1, 16))
+p.progressed <- plot.chra(subset(plot.data, progressed == "Progression"))
+p.progressed <- p.progressed + labs(x="Days from Dx", y="ChrA categorical level", title="Progression")
 
-p <- p + theme_bw()
-# p <- p + theme(legend.position="none")
-p
+p.noprogressed <- plot.chra(subset(plot.data, progressed == "No Progression"))
+p.noprogressed <- p.noprogressed + labs(x="Days from Dx", y="ChrA categorical level", title="No Progression")
 
-ggsave(filename = "ChrA_cat.png", plot=p, width=14, height=10)
-
-# p.progressed <- plot.chra(subset(plot.data, progressed == "Progression"), title="Progression")
-# p.noprogressed <- plot.chra(subset(plot.data, progressed == "No Progression"), title="No Progression")
-# 
-# grid.arrange(p.noprogressed, p.progressed, ncol=2)
-
+png("ChrA_cat.png", width=1200, height=750)
+grid.arrange(p.noprogressed, p.progressed, ncol=2)
+dev.off()
 
 ```
