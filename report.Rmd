@@ -90,7 +90,6 @@ plot.nse <- function(data) {
 
 p.progressed <- plot.nse(data=subset(data, progressed == "Progression"))
 p.progressed <- p.progressed + labs(x="Days from Dx", y="NSE (ug)", title="Progression")
-# p.progressed <- p.progressed + theme(legend.position="right")
 
 p.noprogressed <- plot.nse(data=subset(data, progressed == "No Progression"))
 p.noprogressed <- p.noprogressed + labs(x="Days from Dx", title="No Progression")
@@ -111,7 +110,7 @@ plot.chra <- function(data) {
   p <- ggplot(plot.data, aes(x=DateDays, y=ChrA_cat, group=PtNum))
   
   p <- p + geom_line(size=1)
-  p <- p + geom_point(aes(color=Txend, shape=Txend), size=4)
+  p <- p + geom_point(size=4)
 
   recpoints <- subset(data, Rec == 1)  
   p <- p + geom_vline(data=recpoints, aes(xintercept=DateDays))
@@ -132,7 +131,6 @@ plot.chra <- function(data) {
 
 p.progressed <- plot.chra(subset(data, progressed == "Progression"))
 p.progressed <- p.progressed + labs(x="Days from Dx", y="ChrA categorical level", title="Progression")
-p.progressed <- p.progressed + theme(legend.position="right")
 
 p.noprogressed <- plot.chra(subset(data, progressed == "No Progression"))
 p.noprogressed <- p.noprogressed + labs(x="Days from Dx", y="ChrA categorical level", title="No Progression")
