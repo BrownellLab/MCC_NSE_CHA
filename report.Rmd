@@ -1,7 +1,7 @@
 ---
 title: "MCC NSE CHA"
 author: "Kenneth Daily"
-date: "01/28/2015"
+date: "03/07/2015"
 output: html_document
 ---
 
@@ -72,9 +72,12 @@ nse.cutpoints <- data.frame(y=c(17, 24.3))
 plot.data <- subset(data, !is.na(NSE))
 
 plot.nse <- function(data) {
-  p <- ggplot(data, aes(x=DateDays, y=NSE, group=PtNum))
+
+  plot.data <- subset(data, !is.na(NSE))
+
+  p <- ggplot(plot.data, aes(x=DateDays, y=NSE, group=PtNum))
   p <- p + geom_line(size=1)
-  p <- p + geom_point(aes(color=Txend), size=4)
+  p <- p + geom_point(aes(color=Txend, shape=Txend), size=4)
   
   recpoints <- subset(data, Rec == 1)
   
@@ -82,55 +85,63 @@ plot.nse <- function(data) {
   
   p <- p + facet_wrap(~ PtNum, scale="free_x")  
   p <- p + scale_color_manual(values=c("black", "red"))
-  
+  p <- p + scale_shape_manual(values=c(16, 8))
+
+  p <- p + ylim(c(0, 165))
   p <- p + theme_bw()
   p <- p + theme(legend.position="none")
   
   p
 }
 
-p.progressed <- plot.nse(data=subset(plot.data, progressed == "Progression"))
+p.progressed <- plot.nse(data=subset(data, progressed == "Progression"))
 p.progressed <- p.progressed + labs(x="Days from Dx", y="NSE (ug)", title="Progression")
 
-p.noprogressed <- plot.nse(data=subset(plot.data, progressed == "No Progression"))
+p.noprogressed <- plot.nse(data=subset(data, progressed == "No Progression"))
 p.noprogressed <- p.noprogressed + labs(x="Days from Dx", title="No Progression")
 
 png("NSE.png", width=1200, height=750)
 grid.arrange(p.noprogressed, p.progressed, ncol=2)
 dev.off()
 
+grid.arrange(p.noprogressed, p.progressed, ncol=2)
+
 ```
 
 ```{r plotchracat, fig.width=15, fig.height=7}
-plot.chra <- function(plot.data) {
+plot.chra <- function(data) {
+
+  plot.data <- subset(data, !is.na(ChrA_cat))
+
   p <- ggplot(plot.data, aes(x=DateDays, y=ChrA_cat, group=PtNum))
   
   p <- p + geom_line(size=1)
-  p <- p + geom_point(aes(color=Txend), size=4)
+  p <- p + geom_point(aes(color=Txend, shape=Txend), size=4)
 
-  recpoints <- subset(plot.data, Rec == 1)  
+  recpoints <- subset(data, Rec == 1)  
   p <- p + geom_vline(data=recpoints, aes(xintercept=DateDays))
 
   p <- p + facet_wrap(~ PtNum, scale="free_x")
   
   p <- p + scale_color_manual(values=c("black", "red"))
-  p <- p + scale_shape_manual(values=c(1, 16))
+  p <- p + scale_shape_manual(values=c(16, 8))
   
   p <- p + theme_bw()
   p <- p + theme(legend.position="none")
   p
 }
 
-plot.data <- subset(data, !is.na(ChrA_cat))
 
-p.progressed <- plot.chra(subset(plot.data, progressed == "Progression"))
+p.progressed <- plot.chra(subset(data, progressed == "Progression"))
 p.progressed <- p.progressed + labs(x="Days from Dx", y="ChrA categorical level", title="Progression")
 
-p.noprogressed <- plot.chra(subset(plot.data, progressed == "No Progression"))
+p.noprogressed <- plot.chra(subset(data, progressed == "No Progression"))
 p.noprogressed <- p.noprogressed + labs(x="Days from Dx", y="ChrA categorical level", title="No Progression")
 
 png("ChrA_cat.png", width=1200, height=750)
 grid.arrange(p.noprogressed, p.progressed, ncol=2)
 dev.off()
+
+grid.arrange(p.noprogressed, p.progressed, ncol=2)
 
 ```
