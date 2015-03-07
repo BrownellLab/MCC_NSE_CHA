@@ -33,27 +33,18 @@ data <- read.delim("data/NSE_ChrA_all_values_categorical.csv", sep=",", na.strin
 data <- transform(data,
                   Date=as.Date(Date, format="%m/%d/%Y"))
 
-datedays <- ddply(data, .(PtNum), 
-                  function(x) data.frame(DateDays=difftime(x$Date, min(x$Date), units="days")))
-
-data$DateDays <- as.numeric(datedays$DateDays)
-
-progression <- data %>% 
+ptsummary <- data %>% 
   group_by(PtNum) %>% 
   summarise(progressed=ifelse(sum(Rec == 1) > 1, 
                               "Progression",
-                              "No Progression"))
+                              "No Progression"),
+            firstdate=min(Date))
 
-data <- left_join(data, progression, by="PtNum")
-data$progressed <- factor(data$progressed)
+data <- left_join(data, ptsummary, by="PtNum")
 
-chra.old.cutpoints <- c(0, 25, 53.75, 1000)
-chra.new.cutpoints <- c(0, 84.7, 105.65, 1000)
-
-# foo <- ddply(data.merge, .(PtNum), ddpfcl)
-# colnames(foo) <- c("PtNum", "mintestdate")
-# bar <- merge(data.merge, foo, by="PtNum")
-# head(data.merge[, c("beforeprogression", "progressed", "progfree", "firstprg", "firstprgdays")])
+data <- transform(data, 
+                  progressed=factor(progressed),
+                  DateDays=as.numeric(difftime(Date, firstdate, units="days")))
 
 ```
 
@@ -77,12 +68,15 @@ plot.nse <- function(data) {
 
   p <- ggplot(plot.data, aes(x=DateDays, y=NSE, group=PtNum))
   p <- p + geom_line(size=1)
-  p <- p + geom_point(aes(color=Txend, shape=Txend), size=4)
+  # p <- p + geom_point(aes(color=Txend, shape=Txend), size=4)
+  p <- p + geom_point(size=4)
   
-  recpoints <- subset(data, Rec == 1)
-  
+  recpoints <- subset(data, Rec == 1)  
   p <- p + geom_vline(data=recpoints, aes(xintercept=DateDays))
   
+  txendpoints <- subset(data, Txend == 1)  
+  p <- p + geom_vline(data=txendpoints, aes(xintercept=DateDays), color="red")
+
   p <- p + facet_wrap(~ PtNum, scale="free_x")  
   p <- p + scale_color_manual(values=c("black", "red"))
   p <- p + scale_shape_manual(values=c(16, 8))
@@ -96,6 +90,7 @@ plot.nse <- function(data) {
 
 p.progressed <- plot.nse(data=subset(data, progressed == "Progression"))
 p.progressed <- p.progressed + labs(x="Days from Dx", y="NSE (ug)", title="Progression")
+# p.progressed <- p.progressed + theme(legend.position="right")
 
 p.noprogressed <- plot.nse(data=subset(data, progressed == "No Progression"))
 p.noprogressed <- p.noprogressed + labs(x="Days from Dx", title="No Progression")
@@ -121,6 +116,9 @@ plot.chra <- function(data) {
   recpoints <- subset(data, Rec == 1)  
   p <- p + geom_vline(data=recpoints, aes(xintercept=DateDays))
 
+  txendpoints <- subset(data, Txend == 1)  
+  p <- p + geom_vline(data=txendpoints, aes(xintercept=DateDays), color="red")
+
   p <- p + facet_wrap(~ PtNum, scale="free_x")
   
   p <- p + scale_color_manual(values=c("black", "red"))
@@ -134,6 +132,7 @@ plot.chra <- function(data) {
 
 p.progressed <- plot.chra(subset(data, progressed == "Progression"))
 p.progressed <- p.progressed + labs(x="Days from Dx", y="ChrA categorical level", title="Progression")
+p.progressed <- p.progressed + theme(legend.position="right")
 
 p.noprogressed <- plot.chra(subset(data, progressed == "No Progression"))
 p.noprogressed <- p.noprogressed + labs(x="Days from Dx", y="ChrA categorical level", title="No Progression")
